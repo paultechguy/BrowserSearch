@@ -98,11 +98,11 @@
 				url = url.Replace("&", "^&");
 				_ = Process.Start(new ProcessStartInfo("cmd", $"/c start {options.BrowserName} \"{url}\"") { CreateNoWindow = true });
 			}
-			if (this.osPlatform == OSPlatform.Linux)
+			else if (this.osPlatform == OSPlatform.Linux)
 			{
 				_ = Process.Start("xdg-open", url);
 			}
-			if (this.osPlatform == OSPlatform.OSX)
+			else if (this.osPlatform == OSPlatform.OSX)
 			{
 				_ = Process.Start("open", url);
 			}
