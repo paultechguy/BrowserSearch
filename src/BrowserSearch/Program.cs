@@ -99,7 +99,7 @@ public class Program
 		{
 			// commented this out 10/24/2023; not sure why this replace was being done, but seems
 			// to work without it (for now)
-			//url = url.Replace("&", "^&");
+			url = url.Replace("&", "^&");
 
 			_ = Process.Start(new ProcessStartInfo("cmd", $"/c start {options.BrowserName} \"{url}\"") { CreateNoWindow = true });
 		}
