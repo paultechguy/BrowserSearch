@@ -1,21 +1,40 @@
 ﻿namespace BrowserSearch;
 
-using CommandLine;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Threading;
+using CommandLine;
 
 public class Program
 {
 	private const int CommandCompleteWaitDefaultMs = 5000;
+	private string[] startingPhrases =
+	{
+			"what is the",
+			"how to",
+			"what color",
+			"describe the",
+			"where is it",
+			"why is it",
+			"show tall",
+			"the length of",
+			"who is",
+			"who did",
+			"where is",
+			"are the",
+			"the best of",
+			"which of",
+			"the location of",
+		};
 
 	public static int Main(string[] args)
 	{
-		var exit = 0;
+		int exit = 0;
 		ParserResult<CommandLineOptions> result = Parser.Default.ParseArguments<CommandLineOptions>(args)
 		.WithParsed(options =>  // options is an instance of Options type
 		{
@@ -42,7 +61,7 @@ public class Program
 	{
 		try
 		{
-			var browser = options.BrowserName;
+			string browser = options.BrowserName;
 			if (string.IsNullOrWhiteSpace(options.BrowserName))
 			{
 				browser = "OS default";
@@ -54,20 +73,20 @@ public class Program
 
 			ExecuteCommandBefore(options);
 
-			for (var i = 0; i < options.SearchCount; ++i)
+			for (int i = 0; i < options.SearchCount; ++i)
 			{
-				string words = null;
+				string searchPhrase = null;
 				do
 				{
-					words = string.Join("+", this.GetWords(random, options).Select(w => w.ToLower().Trim()).OrderBy(w => w));
+					searchPhrase = string.Join("+", this.GetWords(random, options).Select(w => w.ToLower().Trim()));
 
-				} while (wordHistory.Contains(words));
+				} while (wordHistory.Contains(searchPhrase));
 
-				Console.WriteLine($"Opening search {i + 1}/{options.SearchCount} using \"{words.Replace("+", " ")}\"");
-				wordHistory.Add(words);
+				Console.WriteLine($"Opening search {i + 1}/{options.SearchCount} using \"{searchPhrase.Replace("+", " ")}\"");
+				wordHistory.Add(searchPhrase);
 
 				// search bing
-				var url = FormatSearchEngineUrl(words);
+				string url = FormatSearchEngineUrl(searchPhrase, random);
 				this.OpenBrowser(url, options);
 
 				// sleep if not the last time
@@ -87,7 +106,7 @@ public class Program
 		return 1;
 	}
 
-	private static string FormatSearchEngineUrl(string words)
+	private static string FormatSearchEngineUrl(string words, Random random)
 	{
 		return $"https://www.bing.com/search?q={words}&form=QBLH";
 	}
@@ -99,7 +118,7 @@ public class Program
 		{
 			// commented this out 10/24/2023; not sure why this replace was being done, but seems
 			// to work without it (for now)
-			url = url.Replace("&", "^&");
+			//url = url.Replace("&", "^&");
 
 			_ = Process.Start(new ProcessStartInfo("cmd", $"/c start {options.BrowserName} \"{url}\"") { CreateNoWindow = true });
 		}
@@ -157,7 +176,7 @@ public class Program
 		const string separator = "::";
 
 		string args = null;
-		var separatorIndex = command.IndexOf(separator);
+		int separatorIndex = command.IndexOf(separator);
 		if (separatorIndex != -1)
 		{
 			// set args first, before changing command
@@ -188,8 +207,8 @@ public class Program
 	private string[] GetWords(Random random, CommandLineOptions options)
 	{
 		var words = new HashSet<string>();
-		var count = random.Next(options.MinSearchWordCount, options.MaxSearchWordCount + 1); // max is exclusive so add 1
-		for (var i = 0; i < count; ++i)
+		int count = random.Next(options.MinSearchWordCount, options.MaxSearchWordCount + 1); // max is exclusive so add 1
+		for (int i = 0; i < count; ++i)
 		{
 			string word;
 			do
@@ -200,7 +219,12 @@ public class Program
 			words.Add(word);
 		}
 
-		return words.ToArray();
+		// now insert a starting phrase
+		var listWords = words.ToList();
+		string startingPhrase = startingPhrases[random.Next(startingPhrases.Length)];
+		listWords.Insert(0, startingPhrase);
+
+		return [.. listWords];
 	}
 
 	private static IList<string> LoadAvailableWords()
