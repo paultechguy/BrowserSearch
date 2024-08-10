@@ -19,30 +19,36 @@ public class CommandLineOptions
 	[Option("maxwords", Default = 4, Required = false, HelpText = "The maximum number of search words.")]
 	public int MaxSearchWordCount { get; set; }
 
-	[Option("commandBefore", Required = false, HelpText = "OS command to execute before searching (separate cmd from args using \"::\").")]
+	[Option("cmdBefore", Required = false, HelpText = "OS command to execute before searching (separate cmd from args using \"::\").")]
 	public string CommandBefore { get; set; }
 
-	[Option("commandAfter", Required = false, HelpText = "OS command to execute after searching (separate cmd from args using \"::\").")]
+	[Option("cmdAfter", Required = false, HelpText = "OS command to execute after searching (separate cmd from args using \"::\").")]
 	public string CommandAfter { get; set; }
 
-	[Option("commandBeforePause", Required = false, Default = 0, HelpText = "Milliseconds to pause before executing commandBefore (default = 0ms).")]
+	[Option("cmdBeforePause", Required = false, Default = 0, HelpText = "Milliseconds to pause before executing commandBefore (default = 0ms).")]
 	public int CommandBeforePauseMs { get; set; }
 
-	[Option("commandAfterPause", Required = false, Default = 0, HelpText = "Milliseconds to pause after excecuting commandAfter (default = 0ms).")]
+	[Option("cmdAfterPause", Required = false, Default = 0, HelpText = "Milliseconds to pause after excecuting commandAfter (default = 0ms).")]
 	public int CommandAfterPauseMs { get; set; }
+
+	[Option("cycles", Required = false, Default = 1, HelpText = "The number of cycles, repeating the \"count\" searches.")]
+	public int CycleCount { get; set; }
+
+	[Option("cyclePause", Required = false, Default = 1200000, HelpText = "Milliseconds to pause after each cycle (default = 1200000ms).")]
+	public int CyclePauseMs{ get; set; }
 
 	[Option(
 		"commandBeforeWait",
 		Required = false,
 		Default = 5000,
 		HelpText = $"Milliseconds to wait for command to complete (default = 5000ms).")]
-	public int CommandBeforeWait { get; set; }
+	public int CommandBeforeWaitMs { get; set; }
 
 	[Option(
 		"commandAfterWait",
 		Required = false,
 		Default = 5000,
 		HelpText = $"Milliseconds to wait for command to complete (default = 5000ms).")]
-	public int CommandAfterWait { get; set; }
+	public int CommandAfterWaitMs { get; set; }
 
 }
