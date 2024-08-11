@@ -2,7 +2,7 @@
   "profiles": {
     "BrowserSearch": {
       "commandName": "Project",
-      "commandLineArgs": " -c 20 -d 16000 --minwords 2 --maxwords 4 -b msedge "
+      "commandLineArgs": " --cycles 2 --cyclePause 120001 -c 2 -d 5000 --minwords 2 --maxwords 4 -b msedge "
     }
   }
 }

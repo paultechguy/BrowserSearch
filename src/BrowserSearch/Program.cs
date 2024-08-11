@@ -66,10 +66,7 @@ public class Program
             // delay if we're repeating
             if (i > 0)
             {
-                // convert pause ms to minutes
-                double pauseMins = options.CyclePauseMs / 60000.0;
-                Console.WriteLine($"Pausing for {Math.Round(pauseMins, 2)} minute(s)");
-                Thread.Sleep(options.CyclePauseMs);
+                PauseUntlNextCycle(options);
             }
 
             // execute an entire cycle
@@ -77,6 +74,33 @@ public class Program
         }
 
         return 1;
+    }
+
+    private static void PauseUntlNextCycle(CommandLineOptions options)
+    {
+        const double MsInOneMinute = 60000.0;
+
+        double pauseMs = options.CyclePauseMs;
+        int pauseCount = (int)Math.Ceiling(pauseMs / MsInOneMinute);
+        Console.WriteLine($"Pausing for {Math.Round(pauseMs / MsInOneMinute, 2)} minute(s)");
+
+        double msRemaining = pauseMs;
+        for (int i = pauseCount; i > 0 ; i--)
+        {
+            int sleepMs = (int)(msRemaining - MsInOneMinute > 0 ? MsInOneMinute : msRemaining);
+            if (sleepMs < MsInOneMinute)
+            {
+                Console.Write($"\rTime remaining: {Math.Truncate(sleepMs / 1000.0)} second(s)");
+            }
+            else
+            {
+                Console.Write($"\rTime remaining: {Math.Round(msRemaining / MsInOneMinute)} minute(s)");
+            }
+
+            msRemaining -= MsInOneMinute;
+
+            Thread.Sleep(sleepMs);
+        }
     }
 
     private void ExecuteCycle(CommandLineOptions options)
