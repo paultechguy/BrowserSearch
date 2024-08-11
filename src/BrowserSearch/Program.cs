@@ -67,7 +67,6 @@ public class Program
             if (i > 0)
             {
                 // convert pause ms to minutes
-                double pauseMins = options.CyclePauseMs / 60000.0;
                 Console.WriteLine($"Pausing for {Math.Round(pauseMins, 2)} minute(s)");
                 Thread.Sleep(options.CyclePauseMs);
             }
