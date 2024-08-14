@@ -59,6 +59,12 @@ public class Program
 
     private int Run(CommandLineOptions options)
     {
+        if (options.StartPauseMs > 0)
+        {
+            Console.WriteLine($"Performing initial startup pause of {options.StartPauseMs}ms...");
+            Thread.Sleep(options.StartPauseMs);
+        }
+
         for (int i = 0; i < options.CycleCount; i++)
         {
             Console.WriteLine($"--------------------- Executing cycle #{i + 1}/{options.CycleCount} ---------------------");
@@ -87,15 +93,18 @@ public class Program
         double msRemaining = pauseMs;
         for (int i = pauseCount; i > 0 ; i--)
         {
+            string timeString = string.Empty;
             int sleepMs = (int)(msRemaining - MsInOneMinute > 0 ? MsInOneMinute : msRemaining);
             if (sleepMs < MsInOneMinute)
             {
-                Console.Write($"\rTime remaining: {Math.Truncate(sleepMs / 1000.0)} second(s)");
+                timeString = $"Time remaining: {Math.Truncate(sleepMs / 1000.0)} second(s)";
             }
             else
             {
-                Console.Write($"\rTime remaining: {Math.Round(msRemaining / MsInOneMinute)} minute(s)");
+                timeString = $"Time remaining: {Math.Round(msRemaining / MsInOneMinute)} minute(s)";
             }
+
+            Console.WriteLine($"\r{timeString, -80}");
 
             msRemaining -= MsInOneMinute;
 
