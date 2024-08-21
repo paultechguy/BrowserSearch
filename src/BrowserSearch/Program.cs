@@ -72,7 +72,7 @@ public class Program
             // delay if we're repeating
             if (i > 0)
             {
-                PauseUntlNextCycle(options);
+                PauseUntilNextCycle(options);
             }
 
             // execute an entire cycle
@@ -82,7 +82,7 @@ public class Program
         return 1;
     }
 
-    private static void PauseUntlNextCycle(CommandLineOptions options)
+    private static void PauseUntilNextCycle(CommandLineOptions options)
     {
         const double MsInOneMinute = 60000.0;
 
@@ -104,7 +104,7 @@ public class Program
                 timeString = $"Time remaining: {Math.Round(msRemaining / MsInOneMinute)} minute(s)";
             }
 
-            Console.WriteLine($"\r{timeString, -80}");
+            Console.Write($"\r{timeString, -80}");
 
             msRemaining -= MsInOneMinute;
 
