@@ -12,6 +12,8 @@ using CommandLine;
 
 public class Program
 {
+    private const int EXIT_FAIL = 1;
+    private const int EXIT_SUCCESS = 0;
     private const int CommandCompleteWaitDefaultMs = 5000;
     private string[] startingPhrases =
     {
@@ -34,18 +36,18 @@ public class Program
 
     public static int Main(string[] args)
     {
-        int exit = 0;
+        int status = EXIT_FAIL;
         ParserResult<CommandLineOptions> result = Parser.Default.ParseArguments<CommandLineOptions>(args)
         .WithParsed(options =>  // options is an instance of Options type
         {
-            exit = new Program().Run(options);
+            status = new Program().Run(options);
         })
         .WithNotParsed(errors =>  // errors is a sequence of type IEnumerable<Error>
         {
-            exit = 0;
+            status = EXIT_FAIL;
         });
 
-        return exit;
+        return status;
     }
 
     private readonly IList<string> availableSearchWords;
@@ -59,27 +61,43 @@ public class Program
 
     private int Run(CommandLineOptions options)
     {
-        if (options.StartPauseMs > 0)
+        int status;
+        DateTime startTime = DateTime.Now;
+        try
         {
-            Console.WriteLine($"Performing initial startup pause of {options.StartPauseMs}ms...");
-            Thread.Sleep(options.StartPauseMs);
-        }
-
-        for (int i = 0; i < options.CycleCount; i++)
-        {
-            Console.WriteLine($"--------------------- Executing cycle #{i + 1}/{options.CycleCount} ---------------------");
-
-            // delay if we're repeating
-            if (i > 0)
+            if (options.StartPauseMs > 0)
             {
-                PauseUntilNextCycle(options);
+                Console.WriteLine($"Performing initial startup pause of {options.StartPauseMs}ms...");
+                Thread.Sleep(options.StartPauseMs);
             }
 
-            // execute an entire cycle
-            this.ExecuteCycle(options);
+            for (int i = 0; i < options.CycleCount; i++)
+            {
+                Console.WriteLine($"--------------------- Executing cycle #{i + 1}/{options.CycleCount} ---------------------");
+
+                // delay if we're repeating
+                if (i > 0)
+                {
+                    PauseUntilNextCycle(options);
+                }
+
+                // execute an entire cycle
+                this.ExecuteCycle(options);
+            }
+
+            // all good if we got here
+            status = EXIT_SUCCESS;
+        }
+        catch (Exception ex)
+        {
+            status = EXIT_FAIL;
+            this.LogError(ex.ToString());
         }
 
-        return 1;
+        TimeSpan duration = DateTime.Now - startTime;
+        Console.WriteLine($"Completed: {DateTime.Now:g}, Duration: {duration}");
+
+        return status;
     }
 
     private static void PauseUntilNextCycle(CommandLineOptions options)
@@ -91,7 +109,7 @@ public class Program
         Console.WriteLine($"Pausing for {Math.Round(pauseMs / MsInOneMinute, 2)} minute(s)");
 
         double msRemaining = pauseMs;
-        for (int i = pauseCount; i > 0 ; i--)
+        for (int i = pauseCount; i > 0; i--)
         {
             string timeString = string.Empty;
             int sleepMs = (int)(msRemaining - MsInOneMinute > 0 ? MsInOneMinute : msRemaining);
@@ -104,7 +122,7 @@ public class Program
                 timeString = $"Time remaining: {Math.Round(msRemaining / MsInOneMinute)} minute(s)";
             }
 
-            Console.Write($"\r{timeString, -80}");
+            Console.Write($"\r{timeString,-80}");
 
             msRemaining -= MsInOneMinute;
 
@@ -313,5 +331,12 @@ public class Program
         {
             throw new ApplicationException($"Unsupported platform to launch process, {RuntimeInformation.OSDescription}");
         }
+    }
+
+    private void LogError(string message)
+    {
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.WriteLine(message);
+        Console.ResetColor();
     }
 }
