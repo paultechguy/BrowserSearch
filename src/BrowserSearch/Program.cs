@@ -2,19 +2,22 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
 using System.Threading;
+using BrowserSearch.Helpers;
 using CommandLine;
 
 public class Program
 {
+    private const int EXIT_FAIL = 1;
+    private const int EXIT_SUCCESS = 0;
     private const int CommandCompleteWaitDefaultMs = 5000;
-    private string[] startingPhrases =
-    {
+    private readonly string[] startingPhrases =
+    [
             "what is the",
             "how to",
             "what color",
@@ -30,22 +33,22 @@ public class Program
             "the best of",
             "which of",
             "the location of",
-        };
+        ];
 
     public static int Main(string[] args)
     {
-        int exit = 0;
+        int status = EXIT_FAIL;
         ParserResult<CommandLineOptions> result = Parser.Default.ParseArguments<CommandLineOptions>(args)
         .WithParsed(options =>  // options is an instance of Options type
         {
-            exit = new Program().Run(options);
+            status = new Program().Run(options);
         })
         .WithNotParsed(errors =>  // errors is a sequence of type IEnumerable<Error>
         {
-            exit = 0;
+            status = EXIT_FAIL;
         });
 
-        return exit;
+        return status;
     }
 
     private readonly IList<string> availableSearchWords;
@@ -59,43 +62,63 @@ public class Program
 
     private int Run(CommandLineOptions options)
     {
-        for (int i = 0; i < options.CycleCount; i++)
+        int status;
+        DateTime startTime = DateTime.Now;
+        try
         {
-            Console.WriteLine($"--------------------- Executing cycle #{i + 1}/{options.CycleCount} ---------------------");
-
-            // delay if we're repeating
-            if (i > 0)
+            if (options.StartPauseMs > 0)
             {
-                PauseUntlNextCycle(options);
+                LogHelper.LogInformation($"Performing initial startup pause of {options.StartPauseMs}ms...");
+                Thread.Sleep(options.StartPauseMs);
             }
 
-            // execute an entire cycle
-            this.ExecuteCycle(options);
+            for (int i = 0; i < options.CycleCount; i++)
+            {
+                LogHelper.LogInformation($"--------------------- Executing cycle #{i + 1}/{options.CycleCount} ---------------------");
+
+                // delay if we're repeating
+                if (i > 0)
+                {
+                    PauseUntilNextCycle(options);
+                }
+
+                // execute an entire cycle
+                this.ExecuteCycle(options);
+            }
+
+            // all good if we got here
+            status = EXIT_SUCCESS;
+        }
+        catch (Exception ex)
+        {
+            status = EXIT_FAIL;
+            LogHelper.LogError(ex.ToString());
         }
 
-        return 1;
+        TimeSpan duration = DateTime.Now - startTime;
+        LogHelper.LogInformation($"Completed: {DateTime.Now:g}, Duration: {duration}");
+
+        return status;
     }
 
-    private static void PauseUntlNextCycle(CommandLineOptions options)
+    private static void PauseUntilNextCycle(CommandLineOptions options)
     {
         const double MsInOneMinute = 60000.0;
 
         double pauseMs = options.CyclePauseMs;
         int pauseCount = (int)Math.Ceiling(pauseMs / MsInOneMinute);
-        Console.WriteLine($"Pausing for {Math.Round(pauseMs / MsInOneMinute, 2)} minute(s)");
+        LogHelper.LogWarning($"Pausing for {Math.Round(pauseMs / MsInOneMinute, 2)} minute(s)");
 
         double msRemaining = pauseMs;
-        for (int i = pauseCount; i > 0 ; i--)
+        for (int i = pauseCount; i > 0; i--)
         {
+            string timeString;
             int sleepMs = (int)(msRemaining - MsInOneMinute > 0 ? MsInOneMinute : msRemaining);
-            if (sleepMs < MsInOneMinute)
-            {
-                Console.Write($"\rTime remaining: {Math.Truncate(sleepMs / 1000.0)} second(s)");
-            }
-            else
-            {
-                Console.Write($"\rTime remaining: {Math.Round(msRemaining / MsInOneMinute)} minute(s)");
-            }
+            timeString = sleepMs < MsInOneMinute
+                ? $"Time remaining: {Math.Truncate(sleepMs / 1000.0)} second(s)"
+                : $"Time remaining: {Math.Round(msRemaining / MsInOneMinute)} minute(s)";
+
+            LogHelper.Log($"\r{timeString,-80}\r", color: ConsoleColor.Green, linefeed: false);
 
             msRemaining -= MsInOneMinute;
 
@@ -112,7 +135,7 @@ public class Program
             {
                 browser = "OS default";
             }
-            Console.WriteLine($"Using browser: {browser}");
+            LogHelper.LogInformation($"\nUsing browser: {browser}");
 
             var wordHistory = new HashSet<string>();
             var random = new Random();
@@ -128,11 +151,11 @@ public class Program
 
                 } while (wordHistory.Contains(searchPhrase));
 
-                Console.WriteLine($"Opening search {i + 1}/{options.SearchCount} using \"{searchPhrase.Replace("+", " ")}\"");
+                LogHelper.LogInformation($"Opening search {i + 1}/{options.SearchCount} using \"{searchPhrase.Replace("+", " ")}\"");
                 wordHistory.Add(searchPhrase);
 
                 // search bing
-                string url = FormatSearchEngineUrl(searchPhrase, random);
+                string url = FormatSearchEngineUrl(searchPhrase);
                 this.OpenBrowser(url, options);
 
                 // sleep if not the last time
@@ -150,7 +173,7 @@ public class Program
         }
     }
 
-    private static string FormatSearchEngineUrl(string words, Random random)
+    private static string FormatSearchEngineUrl(string words)
     {
         return $"https://www.bing.com/search?q={words}&form=QBLH";
     }
@@ -170,13 +193,11 @@ public class Program
         {
             _ = Process.Start("xdg-open", url);
         }
-        else if (this.osPlatform == OSPlatform.OSX)
-        {
-            _ = Process.Start("open", url);
-        }
         else
         {
-            throw new ApplicationException($"Internal error; invalid OS defined in {nameof(osPlatform)}");
+            _ = this.osPlatform == OSPlatform.OSX
+                ? Process.Start("open", url)
+                : throw new ApplicationException($"Internal error; invalid OS defined in {nameof(this.osPlatform)}");
         }
     }
 
@@ -187,12 +208,12 @@ public class Program
             return;
         }
 
-        Console.WriteLine($"Executing command before search, \"{options.CommandBefore}\"");
+        LogHelper.LogInformation($"Executing command before search, \"{options.CommandBefore}\"");
         ExecuteOperatingSystemCommand(options.CommandBefore, options.CommandBeforeWaitMs);
 
         if (options.CommandBeforePauseMs > 0)
         {
-            Console.WriteLine($"Pause after executing command, before search, {options.CommandBeforePauseMs} ms");
+            LogHelper.LogInformation($"Pause after executing command, before search, {options.CommandBeforePauseMs} ms");
             Thread.Sleep(options.CommandBeforePauseMs);
         }
     }
@@ -206,11 +227,11 @@ public class Program
 
         if (options.CommandAfterPauseMs > 0)
         {
-            Console.WriteLine($"Pause before executing command, after search {options.CommandAfterPauseMs} ms");
+            LogHelper.LogInformation($"Pause before executing command, after search {options.CommandAfterPauseMs} ms");
             Thread.Sleep(options.CommandAfterPauseMs);
         }
 
-        Console.WriteLine($"Executing the command after search, \"{options.CommandAfter}\"");
+        LogHelper.LogInformation($"Executing the command after search, \"{options.CommandAfter}\"");
         ExecuteOperatingSystemCommand(options.CommandAfter, options.CommandAfterWaitMs);
     }
 
@@ -230,16 +251,7 @@ public class Program
 
         try
         {
-            Process process = null;
-            if (args is null)
-            {
-                process = Process.Start(command);
-            }
-            else
-            {
-                process = Process.Start(command, args);
-            }
-
+            Process process = args is null ? Process.Start(command) : Process.Start(command, args);
             process.WaitForExit(waitToCompleteMs > 0 ? waitToCompleteMs : CommandCompleteWaitDefaultMs);
         }
         catch (Exception ex)
@@ -257,7 +269,7 @@ public class Program
             string word;
             do
             {
-                word = availableSearchWords[random.Next(availableSearchWords.Count)];
+                word = this.availableSearchWords[random.Next(this.availableSearchWords.Count)];
             } while (words.Contains(word));
 
             words.Add(word);
@@ -265,13 +277,13 @@ public class Program
 
         // now insert a starting phrase
         var listWords = words.ToList();
-        string startingPhrase = startingPhrases[random.Next(startingPhrases.Length)];
+        string startingPhrase = this.startingPhrases[random.Next(this.startingPhrases.Length)];
         listWords.Insert(0, startingPhrase);
 
         return [.. listWords];
     }
 
-    private static IList<string> LoadAvailableWords()
+    private static ReadOnlyCollection<string> LoadAvailableWords()
     {
         const string FileName = "words.txt";
         if (!File.Exists(FileName))
@@ -281,7 +293,7 @@ public class Program
 
         // read all non-blank lines, ignore those marked as a comment
         return Array.AsReadOnly<string>(File.ReadAllLines(FileName)
-            .Where(l => !l.StartsWith("#") && l.Trim().Length > 0)
+            .Where(l => !l.StartsWith('#') && l.Trim().Length > 0)
             .ToArray());
     }
 
@@ -296,13 +308,11 @@ public class Program
         {
             this.osPlatform = OSPlatform.Linux;
         }
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-        {
-            this.osPlatform = OSPlatform.OSX;
-        }
         else
         {
-            throw new ApplicationException($"Unsupported platform to launch process, {RuntimeInformation.OSDescription}");
+            this.osPlatform = RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+                ? (OSPlatform?)OSPlatform.OSX
+                : throw new ApplicationException($"Unsupported platform to launch process, {RuntimeInformation.OSDescription}");
         }
     }
 }
