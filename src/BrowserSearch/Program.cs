@@ -16,24 +16,8 @@ public class Program
     private const int EXIT_FAIL = 1;
     private const int EXIT_SUCCESS = 0;
     private const int CommandCompleteWaitDefaultMs = 5000;
-    private readonly string[] startingPhrases =
-    [
-            "what is the",
-            "how to",
-            "what color",
-            "describe the",
-            "where is it",
-            "why is it",
-            "show tall",
-            "the length of",
-            "who is",
-            "who did",
-            "where is",
-            "are the",
-            "the best of",
-            "which of",
-            "the location of",
-        ];
+    private const string SearchWordsFileName = "searchwords.txt";
+    private const string SearchPrefixesFileName = "searchprefixes.txt";
 
     public static int Main(string[] args)
     {
@@ -51,12 +35,14 @@ public class Program
         return status;
     }
 
-    private readonly IList<string> availableSearchWords;
+    private readonly ReadOnlyCollection<string> availableSearchWords;
+    private readonly ReadOnlyCollection<string> availableSearchPrefixes;
     private OSPlatform? osPlatform = null;
 
     public Program()
     {
-        this.availableSearchWords = LoadAvailableWords();
+        this.availableSearchWords = LoadSearchContentLines(SearchWordsFileName);
+        this.availableSearchPrefixes = LoadSearchContentLines(SearchPrefixesFileName);
         this.DetermineOSPlatform();
     }
 
@@ -66,10 +52,10 @@ public class Program
         DateTime startTime = DateTime.Now;
         try
         {
-            if (options.StartPauseMs > 0)
+            if (options.StartAllCyclesPauseMs > 0)
             {
-                LogHelper.LogInformation($"Performing initial startup pause of {options.StartPauseMs}ms...");
-                Thread.Sleep(options.StartPauseMs);
+                LogHelper.LogInformation($"Performing initial startup pause of {options.StartAllCyclesPauseMs}ms...");
+                Thread.Sleep(options.StartAllCyclesPauseMs);
             }
 
             for (int i = 0; i < options.CycleCount; i++)
@@ -96,7 +82,7 @@ public class Program
         }
 
         TimeSpan duration = DateTime.Now - startTime;
-        LogHelper.LogInformation($"Completed: {DateTime.Now:g}, Duration: {duration}");
+        LogHelper.Log($"Completed: {DateTime.Now:g}, Duration: {duration}", ConsoleColor.Green);
 
         return status;
     }
@@ -159,9 +145,9 @@ public class Program
                 this.OpenBrowser(url, options);
 
                 // sleep if not the last time
-                if (options.SearchDelayMs > 0 && i + 1 < options.SearchCount)
+                if (options.SearchPauseMs > 0 && i + 1 < options.SearchCount)
                 {
-                    Thread.Sleep(options.SearchDelayMs + random.Next(500, 1001)); // add a random delta to help look non-automated
+                    Thread.Sleep(options.SearchPauseMs + random.Next(500, 1001)); // add a random delta to help look non-automated
                 }
             }
 
@@ -189,50 +175,48 @@ public class Program
 
             _ = Process.Start(new ProcessStartInfo("cmd", $"/c start {options.BrowserName} \"{url}\"") { CreateNoWindow = true });
         }
-        else if (this.osPlatform == OSPlatform.Linux)
-        {
-            _ = Process.Start("xdg-open", url);
-        }
         else
         {
-            _ = this.osPlatform == OSPlatform.OSX
-                ? Process.Start("open", url)
-                : throw new ApplicationException($"Internal error; invalid OS defined in {nameof(this.osPlatform)}");
+            _ = this.osPlatform == OSPlatform.Linux
+                ? Process.Start("xdg-open", url)
+                : this.osPlatform == OSPlatform.OSX
+                            ? Process.Start("open", url)
+                            : throw new ApplicationException($"Internal error; invalid OS defined in {nameof(this.osPlatform)}");
         }
     }
 
     private static void ExecuteCommandBefore(CommandLineOptions options)
     {
-        if (string.IsNullOrWhiteSpace(options.CommandBefore))
+        if (string.IsNullOrWhiteSpace(options.CommandBeforeCycle))
         {
             return;
         }
 
-        LogHelper.LogInformation($"Executing command before search, \"{options.CommandBefore}\"");
-        ExecuteOperatingSystemCommand(options.CommandBefore, options.CommandBeforeWaitMs);
+        LogHelper.LogInformation($"Executing command before search, \"{options.CommandBeforeCycle}\"");
+        ExecuteOperatingSystemCommand(options.CommandBeforeCycle, options.CommandBeforeCycleWaitToCompleteMs);
 
-        if (options.CommandBeforePauseMs > 0)
+        if (options.CommandBeforeCyclePauseMs > 0)
         {
-            LogHelper.LogInformation($"Pause after executing command, before search, {options.CommandBeforePauseMs} ms");
-            Thread.Sleep(options.CommandBeforePauseMs);
+            LogHelper.LogInformation($"Pause after executing command, before search, {options.CommandBeforeCyclePauseMs} ms");
+            Thread.Sleep(options.CommandBeforeCyclePauseMs);
         }
     }
 
     private static void ExecuteCommandAfter(CommandLineOptions options)
     {
-        if (string.IsNullOrWhiteSpace(options.CommandAfter))
+        if (string.IsNullOrWhiteSpace(options.CommandAfterCycle))
         {
             return;
         }
 
-        if (options.CommandAfterPauseMs > 0)
+        if (options.CommandAfterCyclePauseMs > 0)
         {
-            LogHelper.LogInformation($"Pause before executing command, after search {options.CommandAfterPauseMs} ms");
-            Thread.Sleep(options.CommandAfterPauseMs);
+            LogHelper.LogInformation($"Pause before executing command, after search {options.CommandAfterCyclePauseMs} ms");
+            Thread.Sleep(options.CommandAfterCyclePauseMs);
         }
 
-        LogHelper.LogInformation($"Executing the command after search, \"{options.CommandAfter}\"");
-        ExecuteOperatingSystemCommand(options.CommandAfter, options.CommandAfterWaitMs);
+        LogHelper.LogInformation($"Executing the command after search, \"{options.CommandAfterCycle}\"");
+        ExecuteOperatingSystemCommand(options.CommandAfterCycle, options.CommandAfterCycleWaitToCompleteMs);
     }
 
     private static void ExecuteOperatingSystemCommand(string command, int waitToCompleteMs)
@@ -277,22 +261,21 @@ public class Program
 
         // now insert a starting phrase
         var listWords = words.ToList();
-        string startingPhrase = this.startingPhrases[random.Next(this.startingPhrases.Length)];
+        string startingPhrase = this.availableSearchPrefixes[random.Next(this.availableSearchPrefixes.Count)];
         listWords.Insert(0, startingPhrase);
 
         return [.. listWords];
     }
 
-    private static ReadOnlyCollection<string> LoadAvailableWords()
+    private static ReadOnlyCollection<string> LoadSearchContentLines(string fileName)
     {
-        const string FileName = "words.txt";
-        if (!File.Exists(FileName))
+        if (!File.Exists(fileName))
         {
-            throw new FileNotFoundException($"Missing search words file, {FileName}");
+            throw new FileNotFoundException($"Missing search words file, {fileName}");
         }
 
         // read all non-blank lines, ignore those marked as a comment
-        return Array.AsReadOnly<string>(File.ReadAllLines(FileName)
+        return Array.AsReadOnly<string>(File.ReadAllLines(fileName)
             .Where(l => !l.StartsWith('#') && l.Trim().Length > 0)
             .ToArray());
     }
@@ -304,15 +287,13 @@ public class Program
         {
             this.osPlatform = OSPlatform.Windows;
         }
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-        {
-            this.osPlatform = OSPlatform.Linux;
-        }
         else
         {
-            this.osPlatform = RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
-                ? (OSPlatform?)OSPlatform.OSX
-                : throw new ApplicationException($"Unsupported platform to launch process, {RuntimeInformation.OSDescription}");
+            this.osPlatform = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+                ? OSPlatform.Linux
+                : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+                            ? (OSPlatform?)OSPlatform.OSX
+                            : throw new ApplicationException($"Unsupported platform to launch process, {RuntimeInformation.OSDescription}");
         }
     }
 }

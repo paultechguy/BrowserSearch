@@ -10,7 +10,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="words.txt">
+    <None Update="searchprefixes.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="searchwords.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
