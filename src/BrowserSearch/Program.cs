@@ -82,7 +82,7 @@ public class Program
         }
 
         TimeSpan duration = DateTime.Now - startTime;
-        LogHelper.LogInformation($"Completed: {DateTime.Now:g}, Duration: {duration}");
+        LogHelper.Log($"Completed: {DateTime.Now:g}, Duration: {duration}", ConsoleColor.Green);
 
         return status;
     }
