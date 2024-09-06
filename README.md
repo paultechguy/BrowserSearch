@@ -36,12 +36,12 @@ There are a lot of command-line options to tweak things. You can see usage for t
 * --cmdAfterCyclePause (ms pause after a search cycle)
 
 
-I have several scheduled tasks that perform searches using Edge and Chrome (Chrome plugin is set to use a mobile User Agent to obtain mobile reward points).
+I have several scheduled tasks that perform searches using Edge and Chrome (a Chrome plugin is installed to simulate a mobile User Agent).
 
 If you want to search using another engine rather than Bing, that can easily be changed in the source; see the *FormatSearchEngineUrl* method.
 
 **Example**
-The following example performs five cycles of 10 searches in intervals of 1 second, using 2-4 random words. A pause of 20 minutes occurs after each cycle.  The Chrome browser is used. After each search is completed, an 18 second pause occurs, then instances of chrome.exe are killed to fully close the Chrome browser (then a 5 second pause occurs).
+The following example performs five cycles of 10 searches in intervals of 18 seconds, using 2-4 random words. A pause of 20 minutes (1200000ms) occurs after each cycle.  The Edge browser is used. After each individual search is completed, an 18 second pause occurs (18000ms), then instances of msedge.exe are killed to fully close the  Edge browser.  Finally, a 5 second pause occurs after the kill command.
 
 	> BrowserSearch.exe --cycles 5 --cyclePause 1200000 --count 10 --pause 18000 -b msedge --minWords 2 --maxWords 4 --cmdAfterCycle "taskkill::/F /IM msedge.exe" --cmdAfterCyclePause 5000
 
