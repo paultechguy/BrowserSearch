@@ -35,7 +35,7 @@ public class CommandLineOptions
     public int CycleCount { get; set; }
 
     [Option("cyclePause", Required = false, Default = 1200000, HelpText = "Milliseconds to pause after each cycle (default = 1200000ms).")]
-    public int CyclePauseMs{ get; set; }
+    public int CyclePauseMs { get; set; }
 
     [Option(
         "cmdBeforeCycleWaitToComplete",
