@@ -240,7 +240,7 @@ public class Program
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error excuting command \"{command}\". Reason: {ex.Message}");
+            LogHelper.LogError($"Error excuting command \"{command}\". Reason: {ex.Message}");
         }
     }
 
