@@ -8,8 +8,11 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
-using BrowserSearch.Helpers;
 using CommandLine;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Serilog;
 
 public class Program
 {
@@ -25,7 +28,8 @@ public class Program
         ParserResult<CommandLineOptions> result = Parser.Default.ParseArguments<CommandLineOptions>(args)
         .WithParsed(options =>  // options is an instance of Options type
         {
-            status = new Program().Run(options);
+            IHost host = ConfigureApplication(args);
+            status = new Program(host).Run(options);
         })
         .WithNotParsed(errors =>  // errors is a sequence of type IEnumerable<Error>
         {
@@ -35,14 +39,38 @@ public class Program
         return status;
     }
 
+    private static IHost ConfigureApplication(string[] args)
+    {
+        IHost host = Host.CreateDefaultBuilder(args)
+            .ConfigureHostConfiguration(configHost =>
+            {
+                configHost.SetBasePath(Directory.GetCurrentDirectory());
+                configHost.AddJsonFile("appsettings.json", optional: true);
+            })
+            .ConfigureServices(services =>
+            {
+            })
+            .UseSerilog((context, configuration) =>
+            {
+                configuration.ReadFrom.Configuration(context.Configuration);
+            })
+            .Build();
+
+        return host;
+
+        // Note: host won't be disposed until after the app finishes
+    }
+
     private readonly ReadOnlyCollection<string> availableSearchWords;
     private readonly ReadOnlyCollection<string> availableSearchPrefixes;
+    private readonly Serilog.ILogger logger;
     private OSPlatform? osPlatform = null;
 
-    public Program()
+    public Program(IHost host)
     {
         this.availableSearchWords = LoadSearchContentLines(SearchWordsFileName);
         this.availableSearchPrefixes = LoadSearchContentLines(SearchPrefixesFileName);
+        this.logger = host.Services.GetRequiredService<ILogger>();
         this.DetermineOSPlatform();
     }
 
@@ -54,18 +82,18 @@ public class Program
         {
             if (options.StartAllCyclesPauseMs > 0)
             {
-                LogHelper.LogInformation($"Performing initial startup pause of {options.StartAllCyclesPauseMs}ms...");
+                this.logger.Information("Performing initial startup pause of {milliseconds} milliseconds...", options.StartAllCyclesPauseMs);
                 Thread.Sleep(options.StartAllCyclesPauseMs);
             }
 
             for (int i = 0; i < options.CycleCount; i++)
             {
-                LogHelper.LogInformation($"--------------------- Executing cycle #{i + 1}/{options.CycleCount} ---------------------");
+                this.logger.Information("--------------------- Executing cycle {cycle} of {count} ---------------------", i + 1, options.CycleCount);
 
                 // delay if we're repeating
                 if (i > 0)
                 {
-                    PauseUntilNextCycle(options);
+                    this.PauseUntilNextCycle(options);
                 }
 
                 // execute an entire cycle
@@ -78,33 +106,35 @@ public class Program
         catch (Exception ex)
         {
             status = EXIT_FAIL;
-            LogHelper.LogError(ex.ToString());
+            this.logger.Error(ex.ToString());
         }
 
         TimeSpan duration = DateTime.Now - startTime;
-        LogHelper.Log($"Completed: {DateTime.Now:g}, Duration: {duration}", ConsoleColor.Green);
+        this.logger.Information("Completed: {date}, Duration: {duration}", DateTime.Now.ToString("g"), duration);
 
         return status;
     }
 
-    private static void PauseUntilNextCycle(CommandLineOptions options)
+    private void PauseUntilNextCycle(CommandLineOptions options)
     {
         const double MsInOneMinute = 60000.0;
 
         double pauseMs = options.CyclePauseMs;
         int pauseCount = (int)Math.Ceiling(pauseMs / MsInOneMinute);
-        LogHelper.LogWarning($"Pausing for {Math.Round(pauseMs / MsInOneMinute, 2)} minute(s)");
+        this.logger.Warning("Pausing for {minutes} minute(s)", Math.Round(pauseMs / MsInOneMinute, 2));
 
         double msRemaining = pauseMs;
         for (int i = pauseCount; i > 0; i--)
         {
-            string timeString;
             int sleepMs = (int)(msRemaining - MsInOneMinute > 0 ? MsInOneMinute : msRemaining);
-            timeString = sleepMs < MsInOneMinute
-                ? $"Time remaining: {Math.Truncate(sleepMs / 1000.0)} second(s)"
-                : $"Time remaining: {Math.Round(msRemaining / MsInOneMinute)} minute(s)";
-
-            LogHelper.Log($"\r{timeString,-80}\r", color: ConsoleColor.Green, linefeed: false);
+            if (sleepMs < MsInOneMinute)
+            {
+                this.logger.Information("Time remaining: {seconds} second(s)", Math.Truncate(sleepMs / 1000.0));
+            }
+            else
+            {
+                this.logger.Information("Time remaining: {minutes} minute(s)", Math.Round(msRemaining / MsInOneMinute));
+            }
 
             msRemaining -= MsInOneMinute;
 
@@ -121,12 +151,12 @@ public class Program
             {
                 browser = "OS default";
             }
-            LogHelper.LogInformation($"\nUsing browser: {browser}");
+            this.logger.Information("Using browser: {browser}", browser);
 
             var wordHistory = new HashSet<string>();
             var random = new Random();
 
-            ExecuteCommandBefore(options);
+            this.ExecuteCommandBefore(options);
 
             for (int i = 0; i < options.SearchCount; ++i)
             {
@@ -137,7 +167,7 @@ public class Program
 
                 } while (wordHistory.Contains(searchPhrase));
 
-                LogHelper.LogInformation($"Opening search {i + 1}/{options.SearchCount} using \"{searchPhrase.Replace("+", " ")}\"");
+                this.logger.Information("Opening search {count} of {maxCount} using \"{phrase}\"", i + 1, options.SearchCount, searchPhrase.Replace("+", " "));
                 wordHistory.Add(searchPhrase);
 
                 // search bing
@@ -151,7 +181,7 @@ public class Program
                 }
             }
 
-            ExecuteCommandAfter(options);
+            this.ExecuteCommandAfter(options);
         }
         catch (Exception)
         {
@@ -185,24 +215,24 @@ public class Program
         }
     }
 
-    private static void ExecuteCommandBefore(CommandLineOptions options)
+    private void ExecuteCommandBefore(CommandLineOptions options)
     {
         if (string.IsNullOrWhiteSpace(options.CommandBeforeCycle))
         {
             return;
         }
 
-        LogHelper.LogInformation($"Executing command before search, \"{options.CommandBeforeCycle}\"");
-        ExecuteOperatingSystemCommand(options.CommandBeforeCycle, options.CommandBeforeCycleWaitToCompleteMs);
+        this.logger.Information("Executing command before search, \"{command}\"", options.CommandBeforeCycle);
+        this.ExecuteOperatingSystemCommand(options.CommandBeforeCycle, options.CommandBeforeCycleWaitToCompleteMs);
 
         if (options.CommandBeforeCyclePauseMs > 0)
         {
-            LogHelper.LogInformation($"Pause after executing command, before search, {options.CommandBeforeCyclePauseMs} ms");
+            this.logger.Information("Pause after executing command, before search, {milliseconds} milliseconds", options.CommandBeforeCyclePauseMs);
             Thread.Sleep(options.CommandBeforeCyclePauseMs);
         }
     }
 
-    private static void ExecuteCommandAfter(CommandLineOptions options)
+    private void ExecuteCommandAfter(CommandLineOptions options)
     {
         if (string.IsNullOrWhiteSpace(options.CommandAfterCycle))
         {
@@ -211,15 +241,15 @@ public class Program
 
         if (options.CommandAfterCyclePauseMs > 0)
         {
-            LogHelper.LogInformation($"Pause before executing command, after search {options.CommandAfterCyclePauseMs} ms");
+            this.logger.Information("Pause before executing command, after search {milliseconds} milliseconds", options.CommandAfterCyclePauseMs);
             Thread.Sleep(options.CommandAfterCyclePauseMs);
         }
 
-        LogHelper.LogInformation($"Executing the command after search, \"{options.CommandAfterCycle}\"");
-        ExecuteOperatingSystemCommand(options.CommandAfterCycle, options.CommandAfterCycleWaitToCompleteMs);
+        this.logger.Information("Executing the command after search, \"{command}\"", options.CommandAfterCycle);
+        this.ExecuteOperatingSystemCommand(options.CommandAfterCycle, options.CommandAfterCycleWaitToCompleteMs);
     }
 
-    private static void ExecuteOperatingSystemCommand(string command, int waitToCompleteMs)
+    private void ExecuteOperatingSystemCommand(string command, int waitToCompleteMs)
     {
         // a delimiter to separate the process command from the command arguments
         const string separator = "::";
@@ -240,7 +270,7 @@ public class Program
         }
         catch (Exception ex)
         {
-            LogHelper.LogError($"Error excuting command \"{command}\". Reason: {ex.Message}");
+            this.logger.Error("Error excuting command \"{command}\". Reason: {reason}", command, ex.Message);
         }
     }
 
@@ -283,17 +313,12 @@ public class Program
     private void DetermineOSPlatform()
     {
 
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            this.osPlatform = OSPlatform.Windows;
-        }
-        else
-        {
-            this.osPlatform = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+        this.osPlatform = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? OSPlatform.Windows
+            : RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
                 ? OSPlatform.Linux
                 : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
                             ? (OSPlatform?)OSPlatform.OSX
                             : throw new ApplicationException($"Unsupported platform to launch process, {RuntimeInformation.OSDescription}");
-        }
     }
 }

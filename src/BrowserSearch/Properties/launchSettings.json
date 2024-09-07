@@ -2,7 +2,7 @@
   "profiles": {
     "BrowserSearch": {
       "commandName": "Project",
-      "commandLineArgs": "--cycles 5 --cyclePause 5000 -c 1 -d 3000 -b chrome --minwords 2 --maxwords 4 --cmdAfter \"taskkill::/F /IM chrome.exe\" --cmdAfterPause 5000"
+      "commandLineArgs": "--cycles 5 --cyclePause 5000 -c 2 -p 3000 -b chrome --minWords 2 --maxWords 4 --cmdAfterCycle \"taskkill::/F /IM chrome.exe\" --cmdAfterCyclePause 5000"
     }
   }
 }
