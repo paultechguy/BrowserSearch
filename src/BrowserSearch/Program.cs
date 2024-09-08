@@ -121,7 +121,7 @@ public class Program
 
         double pauseMs = options.CyclePauseMs;
         int pauseCount = (int)Math.Ceiling(pauseMs / MsInOneMinute);
-        this.logger.Warning("Pausing for {minutes} minute(s)", Math.Round(pauseMs / MsInOneMinute, 2));
+        this.logger.Information("Pausing for {minutes} minute(s)", Math.Round(pauseMs / MsInOneMinute, 2));
 
         double msRemaining = pauseMs;
         for (int i = pauseCount; i > 0; i--)
@@ -241,7 +241,7 @@ public class Program
 
         if (options.CommandAfterCyclePauseMs > 0)
         {
-            this.logger.Information("Pause before executing command, after search {milliseconds} milliseconds", options.CommandAfterCyclePauseMs);
+            this.logger.Information("Pause before executing command, after search, {milliseconds} milliseconds", options.CommandAfterCyclePauseMs);
             Thread.Sleep(options.CommandAfterCyclePauseMs);
         }
 
